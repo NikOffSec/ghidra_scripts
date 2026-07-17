@@ -214,4 +214,34 @@ except:
     decompile.dispose()
 
 
-# pass 2 (relative)
+# pass 2 (analyze verdicts)
+
+findings = []
+
+for callee, verdicts in results.items():
+    total = len(verdicts)
+    if total < MIN_SITES:
+        continue
+
+    checked = [v for v in verdicts if v["kind"] == checked]
+    suspect = [v for v in verdicts if v["kind"] in ("unused", "deref_untested", "used_untested")]
+    if not checked or not suspect:
+        continue
+    if len(checked) / total < MIN_CHECK_PCT:
+        continue
+
+    consts = set()
+    for v in checked:
+        for c in v["checks"]:
+            if "value" in c:
+                consts.add(c["value"])
+
+    for v in suspect:
+        findings.append({
+            "callee": callee, "addr": v["addr"], "caller": v["caller"],
+            "kind": v["kind"], "consts": sorted(consts),
+            "n_checked": len(checked), "n_total": total,
+        })
+
+rank = {"deref_untested": 0, "unused": 1, "used_untested": 2}
+findings.sort(key=lambda f: (rank.get(f["kind"], 9), str(f["addr"])))
