@@ -219,12 +219,13 @@ except:
 findings = []
 
 for callee, verdicts in results.items():
-    total = len(verdicts)
+    checked = [v for v in verdicts if v["kind"] == checked]
+    suspect = [v for v in verdicts if v["kind"] in ("unused", "deref_untested", "used_untested")]
+
+    total = len(checked) + len(suspect)
     if total < MIN_SITES:
         continue
 
-    checked = [v for v in verdicts if v["kind"] == checked]
-    suspect = [v for v in verdicts if v["kind"] in ("unused", "deref_untested", "used_untested")]
     if not checked or not suspect:
         continue
     if len(checked) / total < MIN_CHECK_PCT:
@@ -245,3 +246,19 @@ for callee, verdicts in results.items():
 
 rank = {"deref_untested": 0, "unused": 1, "used_untested": 2}
 findings.sort(key=lambda f: (rank.get(f["kind"], 9), str(f["addr"])))
+
+# report findings
+
+def note_for(f): 
+    kind = f["kind"].replace("_", " ")
+    return (f"{COMMENT_TAG} {f['callee'].getName()} return {kind} "
+            f"({f['n_checked']}/{f['n_total']} sites check, vs {f['consts']})")
+
+# remove current script generated bookmarks to avoid duplicates
+if ADD_BOOKMARKS:
+    currentProgram.getBookmarkManager().removeBookmarks("Note", BOOKMARK_CAT, monitor)
+
+println("=" * 72)
+println(f"Unchecked return values: {len(findings)} finding(s)")
+println("=" * 72)
+
